@@ -1,28 +1,36 @@
 import { SHA256 } from "crypto-js";
+import {
+  TransactionInterface,
+  BlockInterface,
+  BlockchainInterface,
+} from "./types";
 
-interface Data {
-  receiver: string;
-  sender: string;
-  amount: number;
+class Transaction implements TransactionInterface {
+  public from: string | null;
+  public to: string;
+  public amount: number;
+
+  public constructor(from: string | null, to: string, amount: number) {
+    this.from = from;
+    this.to = to;
+    this.amount = amount;
+  }
 }
 
-class Block {
-  private index: number;
+class Block implements BlockInterface {
   private timestamp: Date;
-  private data: Data | string;
   private nonce: number;
+  public transactions: Transaction[] | string;
   public previousHash: string;
   public hash: string;
 
   public constructor(
-    index: number,
     timestamp: Date,
-    data: Data | string,
+    transactions: Transaction[] | string,
     previousHash = ""
   ) {
-    this.index = index;
     this.timestamp = timestamp;
-    this.data = data;
+    this.transactions = transactions;
     this.previousHash = previousHash;
     this.hash = this.calculateHash();
     this.nonce = 0;
@@ -30,11 +38,10 @@ class Block {
 
   public calculateHash() {
     return SHA256(
-      this.index +
-        this.previousHash +
+      this.previousHash +
         this.timestamp +
         this.nonce +
-        JSON.stringify(this.data)
+        JSON.stringify(this.transactions)
     ).toString();
   }
 
@@ -49,27 +56,57 @@ class Block {
   }
 }
 
-class Blockchain {
+class Blockchain implements BlockchainInterface {
   private chain: Block[];
   private difficulty: number;
+  public pendingTransactions: Transaction[];
+  public miningReward: number;
 
   public constructor() {
     this.chain = [this.createGenesisBlock()];
     this.difficulty = 4;
+    this.pendingTransactions = [];
+    this.miningReward = 10;
   }
 
   private createGenesisBlock() {
-    return new Block(0, new Date(), "Genesis block", "0");
+    return new Block(new Date(), "Genesis block", "0");
   }
 
   public getLatestBlock() {
     return this.chain[this.chain.length - 1];
   }
 
-  public addBlock(block: Block) {
-    block.previousHash = this.getLatestBlock().hash;
+  public minePendingTransactions(miningRewardAddress: string) {
+    let block = new Block(new Date(), this.pendingTransactions);
     block.mine(this.difficulty);
+    console.log("Block successfully mined!");
     this.chain.push(block);
+    this.pendingTransactions = [
+      new Transaction(null, miningRewardAddress, this.miningReward),
+    ];
+  }
+
+  public createTransaction(transaction: Transaction) {
+    this.pendingTransactions.push(transaction);
+  }
+
+  public getBalance(address: string) {
+    let balance = 0;
+
+    for (const block of this.chain) {
+      for (const transaction of block.transactions) {
+        if ((transaction as Transaction).from === address) {
+          balance -= (transaction as Transaction).amount;
+        }
+
+        if ((transaction as Transaction).to === address) {
+          balance += (transaction as Transaction).amount;
+        }
+      }
+    }
+
+    return balance;
   }
 
   public isValid() {
@@ -96,31 +133,18 @@ class Blockchain {
 const coin = new Blockchain();
 
 // Client
-let blockIndex = 1;
+coin.createTransaction(new Transaction("maria-addr", "john-addr", 100));
+coin.createTransaction(new Transaction("john-addr", "maria-addr", 80));
+coin.createTransaction(new Transaction("maria-addr", "john-addr", 25));
 
-console.log(`Mining block ${blockIndex}`);
-coin.addBlock(
-  new Block(blockIndex, new Date(), {
-    amount: 100,
-    sender: "Marcelo Cardoso",
-    receiver: "Cardoso Marcelo",
-  })
-);
+console.log("\nStarting the miner...");
+coin.minePendingTransactions("pedro-addr");
 
-console.log(`Mining block ${blockIndex}`);
-coin.addBlock(
-  new Block(blockIndex++, new Date(), {
-    amount: 80,
-    sender: "Cardoso Marcelo",
-    receiver: "Marcelo Cardoso",
-  })
-);
+console.log("\nPedro's balance: ", coin.getBalance("pedro-addr"));
+console.log("\nMaria's balance: ", coin.getBalance("maria-addr"));
+console.log("\nJohn's balance: ", coin.getBalance("john-addr"));
 
-console.log(`Mining block ${blockIndex}`);
-coin.addBlock(
-  new Block(blockIndex++, new Date(), {
-    amount: 20,
-    sender: "Cardoso Marcelo",
-    receiver: "Marcelo Cardoso",
-  })
-);
+console.log("\nStarting the miner again...");
+coin.minePendingTransactions("pedro-addr");
+
+console.log("\nPedro's balance: ", coin.getBalance("pedro-addr"));
