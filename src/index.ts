@@ -10,6 +10,7 @@ class Block {
   private index: number;
   private timestamp: Date;
   private data: Data | string;
+  private nonce: number;
   public previousHash: string;
   public hash: string;
 
@@ -23,24 +24,38 @@ class Block {
     this.timestamp = timestamp;
     this.data = data;
     this.previousHash = previousHash;
-    this.hash = this.genHash();
+    this.hash = this.calculateHash();
+    this.nonce = 0;
   }
 
-  public genHash() {
+  public calculateHash() {
     return SHA256(
       this.index +
         this.previousHash +
         this.timestamp +
+        this.nonce +
         JSON.stringify(this.data)
     ).toString();
+  }
+
+  public mine(difficulty: number) {
+    while (
+      this.hash.substr(0, difficulty) !== Array(difficulty + 1).join("0")
+    ) {
+      this.nonce++;
+      this.hash = this.calculateHash();
+    }
+    console.log("Block mined: ", this.hash);
   }
 }
 
 class Blockchain {
   private chain: Block[];
+  private difficulty: number;
 
   public constructor() {
     this.chain = [this.createGenesisBlock()];
+    this.difficulty = 4;
   }
 
   private createGenesisBlock() {
@@ -53,7 +68,7 @@ class Blockchain {
 
   public addBlock(block: Block) {
     block.previousHash = this.getLatestBlock().hash;
-    block.hash = block.genHash();
+    block.mine(this.difficulty);
     this.chain.push(block);
   }
 
@@ -65,7 +80,7 @@ class Blockchain {
       const currentBlock = this.chain[i];
       const previousBlock = this.chain[i - 1];
 
-      if (currentBlock.hash !== currentBlock.genHash()) {
+      if (currentBlock.hash !== currentBlock.calculateHash()) {
         return false;
       }
 
@@ -83,6 +98,7 @@ const coin = new Blockchain();
 // Client
 let blockIndex = 1;
 
+console.log(`Mining block ${blockIndex}`);
 coin.addBlock(
   new Block(blockIndex, new Date(), {
     amount: 100,
@@ -90,6 +106,8 @@ coin.addBlock(
     receiver: "Cardoso Marcelo",
   })
 );
+
+console.log(`Mining block ${blockIndex}`);
 coin.addBlock(
   new Block(blockIndex++, new Date(), {
     amount: 80,
@@ -97,6 +115,8 @@ coin.addBlock(
     receiver: "Marcelo Cardoso",
   })
 );
+
+console.log(`Mining block ${blockIndex}`);
 coin.addBlock(
   new Block(blockIndex++, new Date(), {
     amount: 20,
